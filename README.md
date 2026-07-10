@@ -87,14 +87,31 @@ go build -o gobfuscator
 
 Gobfuscator can process individual files or entire project directories.
 
+### Default Output
+
+The `-o` flag is optional. When omitted:
+
+- **Single file**: the obfuscated output is written to the **current working directory** with the same filename as the input.
+- **Directory**: a new directory named `<inputdir>_obf` is created in the **current working directory**, mirroring the full subdirectory structure of the input.
+
 ### Basic Usage
 
-Process a single file with auto-detected language settings:
+Process a single file (output written to `./script.py` in cwd):
+```bash
+./gobfuscator path/to/script.py
+```
+
+Process a single file with an explicit output path:
 ```bash
 ./gobfuscator script.py -o obfuscated_script.py
 ```
 
-Process an entire directory. The output directory structure mirrors the input:
+Process an entire directory (output goes to `./src_obf/` in cwd):
+```bash
+./gobfuscator ./src
+```
+
+Process an entire directory with an explicit output path:
 ```bash
 ./gobfuscator ./src_dir -o ./build_dir
 ```
@@ -120,7 +137,7 @@ Obfuscate a Ruby script but keep output readable (no eval wrapping):
 
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `-o`, `--output` | Destination file or directory for obfuscated code | Required |
+| `-o`, `--output` | Output file or directory. Defaults to `cwd/<filename>` for files, `cwd/<dir>_obf` for directories | Auto |
 | `--lang` | Force specific language engine (go, cpp, java, js, python, ruby) | Auto-detected |
 | `--rename` | Enable global variable and function renaming | true |
 | `--strings` | Enable polymorphic string encryption | true |

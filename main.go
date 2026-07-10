@@ -105,11 +105,19 @@ Language detection is automatic based on file extensions, unless explicitly over
 			fmt.Println("[*] Gobfuscator Engine Initialized")
 
 			if !stat.IsDir() {
+				if output == "" {
+					// Default: write to cwd with the same filename
+					cwd, _ := os.Getwd()
+					output = filepath.Join(cwd, filepath.Base(inputPath))
+					fmt.Printf("[*] No output specified, writing to: %s\n", output)
+				}
 				processSingleFile(inputPath, output, lang, opts)
 			} else {
 				if output == "" {
-					fmt.Println("[!] Error: Output directory (-o) must be specified when processing a directory.")
-					os.Exit(1)
+					// Default: create <inputDir>_obf next to the input dir
+					cwd, _ := os.Getwd()
+					output = filepath.Join(cwd, filepath.Base(strings.TrimSuffix(inputPath, string(filepath.Separator)))+"_obf")
+					fmt.Printf("[*] No output specified, writing to: %s\n", output)
 				}
 				processDirectory(inputPath, output, lang, opts)
 			}
@@ -117,7 +125,7 @@ Language detection is automatic based on file extensions, unless explicitly over
 	}
 
 	rootCmd.Flags().StringVar(&lang, "lang", "", "Force specific language engine (go, cpp, java, js, python, ruby). If omitted, relies on auto-detection.")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Destination file or directory for obfuscated code")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file or directory. Defaults to cwd/<filename> for files and cwd/<dir>_obf for directories.")
 	rootCmd.Flags().BoolVar(&rename, "rename", true, "Enable global variable and function renaming")
 	rootCmd.Flags().BoolVar(&stringsOpt, "strings", true, "Enable polymorphic string encryption")
 	rootCmd.Flags().BoolVar(&numbers, "numbers", true, "Enable integer literal obfuscation")
