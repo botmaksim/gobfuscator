@@ -155,7 +155,7 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                 orelse=[
                     ast.Expr(value=ast.Call(
                         func=ast.Name(id='Exception', ctx=ast.Load()),
-                        args=[ast.Constant(value="unreachable")],
+                        args=[ast.Constant(value="")],
                         keywords=[]
                     ))
                 ]

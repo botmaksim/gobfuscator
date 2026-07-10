@@ -488,7 +488,7 @@ func (t *Transformer) flattenFlowPass(f *ast.File) {
 			panicStmt := &ast.ExprStmt{
 				X: &ast.CallExpr{
 					Fun: &ast.Ident{Name: "panic"},
-					Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"unreachable"`}},
+					Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `""`}},
 				},
 			}
 			block.List = append(block.List, panicStmt)
@@ -803,7 +803,7 @@ func (t *Transformer) opaquePredsPass(f *ast.File) {
 				&ast.ExprStmt{
 					X: &ast.CallExpr{
 						Fun: &ast.Ident{Name: "panic"},
-						Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"unreachable"`}},
+						Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `""`}},
 					},
 				},
 			},
