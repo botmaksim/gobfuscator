@@ -486,7 +486,21 @@ func (t *Transformer) flattenFlowPass(f *ast.File) {
 		
 		if hasReturn {
 			forStmt := &ast.ForStmt{
-				Body: &ast.BlockStmt{},
+				Body: &ast.BlockStmt{
+					List: []ast.Stmt{
+						&ast.AssignStmt{
+							Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+							Tok: token.ASSIGN,
+							Rhs: []ast.Expr{
+								&ast.BinaryExpr{
+									X:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
+									Op: token.ADD,
+									Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
+								},
+							},
+						},
+					},
+				},
 			}
 			block.List = append(block.List, forStmt)
 		}
@@ -798,7 +812,21 @@ func (t *Transformer) opaquePredsPass(f *ast.File) {
 		falseBranch := &ast.BlockStmt{
 			List: []ast.Stmt{
 				&ast.ForStmt{
-					Body: &ast.BlockStmt{},
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							&ast.AssignStmt{
+								Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+								Tok: token.ASSIGN,
+								Rhs: []ast.Expr{
+									&ast.BinaryExpr{
+										X:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
+										Op: token.ADD,
+										Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		}

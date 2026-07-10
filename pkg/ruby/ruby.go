@@ -92,7 +92,8 @@ end
 			pred := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal, randVal, randVal)
 			randVal2 := rand.Intn(100) + 1
 			pred2 := fmt.Sprintf("((%d * %d + %d) %% 2 == 0)", randVal2, randVal2, randVal2)
-			return fmt.Sprintf("%s\n  if %s\n    while %s; end\n  end\n", match, pred, pred2)
+			body := utils.GenerateDeadCodeBody("ruby", "")
+			return fmt.Sprintf("%s\n  if %s\n    while %s\n      %s\n    end\n  end\n", match, pred, pred2, body)
 		})
 	}
 

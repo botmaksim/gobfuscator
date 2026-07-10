@@ -96,7 +96,8 @@ function %s(msg) {
 			pred := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal, randVal, randVal)
 			randVal2 := rand.Intn(100) + 1
 			pred2 := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal2, randVal2, randVal2)
-			return fmt.Sprintf("%s\n        if (%s) { while(%s){} }\n", match, pred, pred2)
+			body := utils.GenerateDeadCodeBody("js", "")
+			return fmt.Sprintf("%s\n        if (%s) { while(%s){ %s } }\n", match, pred, pred2, body)
 		})
 	}
 

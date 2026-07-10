@@ -155,7 +155,16 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                 orelse=[
                     ast.While(
                         test=cond,
-                        body=[ast.Pass()],
+                        body=[
+                            ast.Assign(
+                                targets=[ast.Name(id='_0xFake', ctx=ast.Store())],
+                                value=ast.BinOp(
+                                    left=ast.Constant(value=rand.randint(1, 100)),
+                                    op=ast.Add(),
+                                    right=ast.Constant(value=rand.randint(1, 100))
+                                )
+                            )
+                        ],
                         orelse=[]
                     )
                 ]
