@@ -35,6 +35,9 @@ type Options struct {
 	// OpaquePreds injects control flow branches that are always statically true/false but hard to analyze.
 	OpaquePreds bool
 
+	// RubyNoEval disables wrapping the final Ruby script in a hex-encoded eval block.
+	RubyNoEval bool
+
 	// GlobalNameMap stores mapping of original names to obfuscated names across the project.
 	GlobalNameMap map[string]string
 }

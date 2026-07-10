@@ -97,7 +97,7 @@ end
 		})
 	}
 
-	if opts.ObfuscateStrings {
+	if opts.ObfuscateStrings && !opts.RubyNoEval {
 		var b bytes.Buffer
 		w := zlib.NewWriter(&b)
 		w.Write([]byte(code))

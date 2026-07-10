@@ -55,6 +55,7 @@ func main() {
 	var antidebug bool
 	var mba bool
 	var opaque bool
+	var rubyNoEval bool
 
 	var rootCmd = &cobra.Command{
 		Use:   "gobfuscator [input_path]",
@@ -97,6 +98,7 @@ Language detection is automatic based on file extensions, unless explicitly over
 				AntiDebug:        antidebug,
 				MBA:              mba,
 				OpaquePreds:      opaque,
+				RubyNoEval:       rubyNoEval,
 				GlobalNameMap:    make(map[string]string),
 			}
 
@@ -127,6 +129,7 @@ Language detection is automatic based on file extensions, unless explicitly over
 	rootCmd.Flags().BoolVar(&antidebug, "anti-debug", true, "Enable anti-debugging and timing countermeasures")
 	rootCmd.Flags().BoolVar(&mba, "mba", true, "Enable Mixed Boolean-Arithmetic mathematical rewriting")
 	rootCmd.Flags().BoolVar(&opaque, "opaque-preds", true, "Enable complex logical opaque predicates")
+	rootCmd.Flags().BoolVar(&rubyNoEval, "ruby-no-eval", false, "Disable hex-encoding and eval wrapping for Ruby")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

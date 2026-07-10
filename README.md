@@ -87,6 +87,7 @@ Force a specific language engine if auto-detection fails or is undesired:
 | `--anti-debug` | Enable anti-debugging and timing countermeasures | true |
 | `--mba` | Enable Mixed Boolean-Arithmetic mathematical rewriting | true |
 | `--opaque-preds` | Enable complex logical opaque predicates | true |
+| `--ruby-no-eval` | Disable hex-encoding and eval wrapping for Ruby scripts | false |
 
 ## Mechanics
 
