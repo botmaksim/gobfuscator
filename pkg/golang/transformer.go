@@ -485,13 +485,10 @@ func (t *Transformer) flattenFlowPass(f *ast.File) {
 		block.List = []ast.Stmt{initStmt, forStmt}
 		
 		if hasReturn {
-			panicStmt := &ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun: &ast.Ident{Name: "panic"},
-					Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `""`}},
-				},
+			forStmt := &ast.ForStmt{
+				Body: &ast.BlockStmt{},
 			}
-			block.List = append(block.List, panicStmt)
+			block.List = append(block.List, forStmt)
 		}
 	}
 }
@@ -800,11 +797,8 @@ func (t *Transformer) opaquePredsPass(f *ast.File) {
 		trueBranch := &ast.BlockStmt{List: block.List}
 		falseBranch := &ast.BlockStmt{
 			List: []ast.Stmt{
-				&ast.ExprStmt{
-					X: &ast.CallExpr{
-						Fun: &ast.Ident{Name: "panic"},
-						Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `""`}},
-					},
+				&ast.ForStmt{
+					Body: &ast.BlockStmt{},
 				},
 			},
 		}

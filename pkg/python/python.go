@@ -153,11 +153,11 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                 test=cond,
                 body=[node],
                 orelse=[
-                    ast.Expr(value=ast.Call(
-                        func=ast.Name(id='Exception', ctx=ast.Load()),
-                        args=[ast.Constant(value="")],
-                        keywords=[]
-                    ))
+                    ast.While(
+                        test=ast.Constant(value=True),
+                        body=[ast.Pass()],
+                        orelse=[]
+                    )
                 ]
             )
         return node

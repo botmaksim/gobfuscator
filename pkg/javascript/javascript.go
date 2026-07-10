@@ -94,7 +94,7 @@ function %s(msg) {
 			}
 			randVal := rand.Intn(100) + 1
 			pred := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal, randVal, randVal)
-			return fmt.Sprintf("%s\n        if (%s) { throw\"\"; }\n", match, pred)
+			return fmt.Sprintf("%s\n        if (%s) { while(true){} }\n", match, pred)
 		})
 	}
 

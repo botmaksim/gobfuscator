@@ -85,7 +85,7 @@ func (c *CppObfuscator) Obfuscate(source []byte, opts options.Options) ([]byte, 
 			}
 			randVal := rand.Intn(100) + 1
 			pred := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal, randVal, randVal)
-			return fmt.Sprintf("%s\n    if (%s) { exit(1); }\n", match, pred)
+			return fmt.Sprintf("%s\n    if (%s) { while(1); }\n", match, pred)
 		})
 	}
 
