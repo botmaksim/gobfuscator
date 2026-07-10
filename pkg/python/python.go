@@ -159,9 +159,9 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                             ast.Assign(
                                 targets=[ast.Name(id='_0xFake', ctx=ast.Store())],
                                 value=ast.BinOp(
-                                    left=ast.Constant(value=rand.randint(1, 100)),
+                                    left=ast.Constant(value=random.randint(1, 100)),
                                     op=ast.Add(),
-                                    right=ast.Constant(value=rand.randint(1, 100))
+                                    right=ast.Constant(value=random.randint(1, 100))
                                 )
                             )
                         ],

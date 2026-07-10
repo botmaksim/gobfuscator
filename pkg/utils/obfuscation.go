@@ -8,6 +8,36 @@ import (
 	"time"
 )
 
+// reservedWords are identifiers that must never be renamed.
+var reservedWords = map[string]bool{
+	// General
+	"main": true, "args": true, "true": true, "false": true, "null": true, "nil": true,
+	// Java
+	"String": true, "System": true, "out": true, "println": true, "print": true,
+	"class": true, "public": true, "private": true, "protected": true, "static": true,
+	"void": true, "int": true, "long": true, "double": true, "float": true, "char": true,
+	"boolean": true, "new": true, "return": true, "if": true, "else": true, "for": true,
+	"while": true, "this": true, "super": true, "instanceof": true, "import": true,
+	// C++
+	"auto": true, "std": true, "cout": true, "cin": true, "endl": true, "size_t": true,
+	"namespace": true, "template": true, "typename": true, "using": true, "include": true,
+	"vector": true, "map": true, "set": true, "pair": true, "string": true,
+	// JS
+	"let": true, "const": true, "var": true, "function": true, "console": true, "log": true,
+	"require": true, "module": true, "exports": true, "process": true, "Math": true,
+	"parseInt": true, "parseFloat": true, "typeof": true, "delete": true, "in": true,
+	"of": true, "break": true, "continue": true, "switch": true, "case": true, "default": true,
+	// Python
+	"def": true, "from": true, "as": true, "with": true, "pass": true, "lambda": true,
+	"yield": true, "async": true, "await": true, "raise": true, "except": true,
+	"finally": true, "global": true, "nonlocal": true, "assert": true,
+	"range": true, "len": true, "self": true, "cls": true, "type": true, "list": true,
+	// Ruby
+	"puts": true, "gets": true, "end": true, "do": true, "begin": true, "rescue": true,
+	"ensure": true, "attr_accessor": true, "attr_reader": true, "attr_writer": true,
+	"extend": true, "prepend": true,
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -17,33 +47,75 @@ func RandomName() string {
 	return fmt.Sprintf("_0x%x", rand.Int31())
 }
 
-// ExtractVariables uses simple regex to find variable names in C++/Java style code.
+// ExtractVariables extracts all renameable identifiers (variables + functions) from source code.
 func ExtractVariables(code, lang string) []string {
-	var vars []string
-	var re *regexp.Regexp
+	seen := make(map[string]bool)
+	var result []string
+
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || len(name) <= 1 || reservedWords[name] || seen[name] {
+			return
+		}
+		// skip all-uppercase identifiers (constants/macros)
+		if strings.ToUpper(name) == name && len(name) > 1 {
+			return
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
 
 	switch lang {
 	case "java", "cpp", "c++":
-		re = regexp.MustCompile(`\b(int|String|char|float|double|auto)\s+([a-zA-Z_]\w*)\s*=`)
-	case "js", "javascript":
-		re = regexp.MustCompile(`\b(var|let|const)\s+([a-zA-Z_]\w*)\s*=`)
-	case "python":
-		re = regexp.MustCompile(`(?m)^\s*([a-zA-Z_]\w*)\s*=`)
-	case "ruby":
-		re = regexp.MustCompile(`(?m)^\s*([a-zA-Z_]\w*)\s*=`)
-	default:
-		return vars
-	}
+		// typed variable/field declarations
+		reTyped := regexp.MustCompile(`\b(?:int|String|char|float|double|auto|void|boolean|long|size_t)\s+([a-zA-Z_]\w*)\s*[\(=\[,;]`)
+		for _, m := range reTyped.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+		// method/function/constructor names: identifier immediately followed by (
+		reMethod := regexp.MustCompile(`\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(`)
+		for _, m := range reMethod.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
 
-	matches := re.FindAllStringSubmatch(code, -1)
-	for _, m := range matches {
-		if len(m) > 2 {
-			vars = append(vars, m[2])
-		} else if len(m) > 1 {
-			vars = append(vars, m[1])
+	case "js", "javascript":
+		// var/let/const declarations
+		reDecl := regexp.MustCompile(`\b(?:var|let|const)\s+([a-zA-Z_]\w*)`)
+		for _, m := range reDecl.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+		// named function declarations
+		reFunc := regexp.MustCompile(`\bfunction\s+([a-zA-Z_]\w*)`)
+		for _, m := range reFunc.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+
+	case "python":
+		// function definitions
+		reFunc := regexp.MustCompile(`(?m)^\s*def\s+([a-zA-Z_]\w*)`)
+		for _, m := range reFunc.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+		// indented local variable assignments
+		reAssign := regexp.MustCompile(`(?m)^[ \t]+([a-zA-Z_]\w*)\s*=`)
+		for _, m := range reAssign.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+
+	case "ruby":
+		// method definitions
+		reFunc := regexp.MustCompile(`(?m)^\s*def\s+([a-zA-Z_]\w*)`)
+		for _, m := range reFunc.FindAllStringSubmatch(code, -1) {
+			add(m[1])
+		}
+		// indented local variable assignments
+		reAssign := regexp.MustCompile(`(?m)^[ \t]+([a-zA-Z_]\w*)\s*=`)
+		for _, m := range reAssign.FindAllStringSubmatch(code, -1) {
+			add(m[1])
 		}
 	}
-	return vars
+
+	return result
 }
 
 // GenerateOpaquePredicate generates an if condition that always evaluates to false.
