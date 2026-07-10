@@ -154,7 +154,7 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                 body=[node],
                 orelse=[
                     ast.While(
-                        test=ast.Constant(value=True),
+                        test=cond,
                         body=[ast.Pass()],
                         orelse=[]
                     )
