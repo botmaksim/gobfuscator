@@ -8,6 +8,8 @@ gobfuscator
 
 # Output and obfuscated test files
 tests/obfuscated/
+tests/obfuscated_all_new/
+*_obf/
 
 # Log files
 *.log
