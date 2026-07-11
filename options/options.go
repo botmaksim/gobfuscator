@@ -38,6 +38,9 @@ type Options struct {
 	// RubyNoEval disables wrapping the final Ruby script in a hex-encoded eval block.
 	RubyNoEval bool
 
+	// JSNoEval disables wrapping the final JS script in a base64-encoded eval block.
+	JSNoEval bool
+
 	// GlobalNameMap stores mapping of original names to obfuscated names across the project.
 	GlobalNameMap map[string]string
 }

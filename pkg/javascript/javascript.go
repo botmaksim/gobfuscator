@@ -103,7 +103,7 @@ function %s(msg) {
 
 	code = utils.MangleWhitespace(code)
 
-	if opts.ObfuscateStrings {
+	if opts.ObfuscateStrings && !opts.JSNoEval {
 		encoded := base64.StdEncoding.EncodeToString([]byte(code))
 		decoderSnippet := fmt.Sprintf(`(function(p){var s=typeof Buffer!=='undefined'?Buffer.from(p,'base64').toString('utf8'):atob(p);eval(s);})("%s");`, encoded)
 		code = utils.MangleWhitespace(decoderSnippet)

@@ -8,7 +8,7 @@ The obfuscator operates through multiple discrete passes, which can be toggled v
 
 - **Variable and Function Renaming (`--rename`)**: Scans the code for all declared identifiers — variables, function definitions, method parameters — and replaces every occurrence with randomized hex-style names (e.g., `_0x3f1a2c7b`). For C++, Java, and JavaScript the engine extracts typed declarations (`int`, `void`, `function`, etc.) as well as function signatures. For Ruby and Python it additionally extracts `def` function definitions. All renames are consistent within a single run: the same original name always maps to the same obfuscated name.
 
-- **Polymorphic String Encryption (`--strings`)**: Encrypts string literals using randomized algorithms (XOR, ADD, SUB, NOT) and injects dynamic decryption logic. For Go, this generates inline XOR decode functions directly into the AST. For Ruby, the entire script is compressed with zlib, base64-encoded, and wrapped in a one-liner `eval(Zlib::Inflate.inflate(Base64.decode64(...)))`. Use `--ruby-no-eval` to skip this final wrapping step.
+- **Polymorphic String Encryption (`--strings`)**: Encrypts string literals using randomized algorithms (XOR, ADD, SUB, NOT) and injects dynamic decryption logic. For Go, this generates inline XOR decode functions directly into the AST. For Ruby and JavaScript, the entire script is compressed or encoded and wrapped in an `eval` one-liner. Use `--ruby-no-eval` or `--js-no-eval` to skip this final wrapping step.
 
 - **String Splitting (`--split-strings`)**: Breaks large string literals into randomized, smaller chunks that are concatenated at runtime, defeating simple string extraction tools.
 
@@ -128,9 +128,10 @@ Force a specific language engine:
 ./gobfuscator code.txt -o obfuscated_code.txt --lang=java
 ```
 
-Obfuscate a Ruby script but keep output readable (no eval wrapping):
+Obfuscate a Ruby or JavaScript script but keep output readable (no eval wrapping):
 ```bash
-./gobfuscator script.rb -o obfuscated.rb --ruby-no-eval
+./gobfuscator script.rb --ruby-no-eval
+./gobfuscator script.js --js-no-eval
 ```
 
 ## Command-Line Flags
@@ -151,6 +152,7 @@ Obfuscate a Ruby script but keep output readable (no eval wrapping):
 | `--mba` | Enable Mixed Boolean-Arithmetic mathematical rewriting | true |
 | `--opaque-preds` | Inject opaque conditional branches with infinite loop fallback | true |
 | `--ruby-no-eval` | Disable zlib+base64 encoding and eval wrapping for Ruby output | false |
+| `--js-no-eval` | Disable base64-encoding and eval wrapping for JavaScript output | false |
 
 ## Mechanics
 
@@ -168,8 +170,12 @@ The renaming engine uses language-specific patterns to discover all renameable i
 - **C++ / Java**: Matches typed variable declarations (`int`, `char`, `float`, `double`, `void`, `boolean`, `long`, `auto`, `String`) and function signatures.
 - **Ruby**: Matches `def` function definitions and bare assignment targets.
 
-### Ruby String Encoding
+### Ruby & JavaScript String Encoding
 
-When `--strings` is enabled and `--ruby-no-eval` is not set, Ruby output undergoes a two-stage transformation: the obfuscated source is compressed with zlib, base64-encoded, and the final file contains only a single-line eval decoder. This renders the source entirely opaque even to string-search tools.
+When `--strings` is enabled and the respective `--<lang>-no-eval` flag is not set, Ruby and JavaScript outputs undergo a final structural transformation:
+- **Ruby**: the obfuscated source is compressed with zlib, base64-encoded, and the final file contains only a single-line eval decoder.
+- **JavaScript**: the source is base64-encoded and executed via a self-invoking function that calls `eval(atob(...))` or `Buffer.from`.
 
-Passing `--ruby-no-eval` skips this final step, producing readable (though structurally obfuscated) Ruby code. This is useful for debugging or when running in environments that restrict `eval`.
+This renders the source entirely opaque even to string-search tools.
+
+Passing `--ruby-no-eval` or `--js-no-eval` skips this final step, producing readable (though structurally obfuscated) code. This is useful for debugging or when running in environments that restrict `eval`.
