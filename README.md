@@ -91,8 +91,10 @@ Gobfuscator can process individual files or entire project directories.
 
 The `-o` flag is optional. When omitted:
 
-- **Single file**: the obfuscated output is written to the **current working directory** with the same filename as the input.
-- **Directory**: a new directory named `<inputdir>_obf` is created in the **current working directory**, mirroring the full subdirectory structure of the input.
+- **Single file**: the obfuscated output is written to the **current working directory** with the `_obfuscated` suffix added to the filename before the extension (e.g., `script_obfuscated.py`).
+- **Directory**: a new directory is created in the **current working directory** with the `_obfuscated` suffix appended to the original directory name (e.g., `src_obfuscated`), mirroring the full subdirectory structure of the input.
+
+You can customize this suffix using the `--suffix` flag. If you want to output with the exact same name (overwriting if in the same directory, or useful when combined with other output paths), you can pass an empty suffix: `--suffix=""`.
 
 ### Basic Usage
 
@@ -138,7 +140,8 @@ Obfuscate a Ruby or JavaScript script but keep output readable (no eval wrapping
 
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `-o`, `--output` | Output file or directory. Defaults to `cwd/<filename>` for files, `cwd/<dir>_obf` for directories | Auto |
+| `-o`, `--output` | Output file or directory. Defaults to `cwd/<filename><suffix>` for files, `cwd/<dir><suffix>` for directories | Auto |
+| `--suffix` | Suffix to append to output filename/directory when `-o` is not specified. Use empty string (`""`) for no suffix | `_obfuscated` |
 | `--lang` | Force specific language engine (go, cpp, java, js, python, ruby) | Auto-detected |
 | `--rename` | Enable global variable and function renaming | true |
 | `--strings` | Enable polymorphic string encryption | true |

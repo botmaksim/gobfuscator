@@ -57,6 +57,7 @@ func main() {
 	var opaque bool
 	var rubyNoEval bool
 	var jsNoEval bool
+	var suffix string
 
 	var rootCmd = &cobra.Command{
 		Use:   "gobfuscator [input_path]",
@@ -108,17 +109,20 @@ Language detection is automatic based on file extensions, unless explicitly over
 
 			if !stat.IsDir() {
 				if output == "" {
-					// Default: write to cwd with the same filename
+					// Default: write to cwd with suffix
 					cwd, _ := os.Getwd()
-					output = filepath.Join(cwd, filepath.Base(inputPath))
+					baseName := filepath.Base(inputPath)
+					ext := filepath.Ext(baseName)
+					name := strings.TrimSuffix(baseName, ext)
+					output = filepath.Join(cwd, name+suffix+ext)
 					fmt.Printf("[*] No output specified, writing to: %s\n", output)
 				}
 				processSingleFile(inputPath, output, lang, opts)
 			} else {
 				if output == "" {
-					// Default: create <inputDir>_obf next to the input dir
+					// Default: create <inputDir><suffix> next to the input dir
 					cwd, _ := os.Getwd()
-					output = filepath.Join(cwd, filepath.Base(strings.TrimSuffix(inputPath, string(filepath.Separator)))+"_obf")
+					output = filepath.Join(cwd, filepath.Base(strings.TrimSuffix(inputPath, string(filepath.Separator)))+suffix)
 					fmt.Printf("[*] No output specified, writing to: %s\n", output)
 				}
 				processDirectory(inputPath, output, lang, opts)
@@ -141,6 +145,7 @@ Language detection is automatic based on file extensions, unless explicitly over
 	rootCmd.Flags().BoolVar(&opaque, "opaque-preds", true, "Enable complex logical opaque predicates")
 	rootCmd.Flags().BoolVar(&rubyNoEval, "ruby-no-eval", false, "Disable hex-encoding and eval wrapping for Ruby")
 	rootCmd.Flags().BoolVar(&jsNoEval, "js-no-eval", false, "Disable base64-encoding and eval wrapping for JavaScript")
+	rootCmd.Flags().StringVar(&suffix, "suffix", "_obfuscated", "Suffix to append to the output filename or directory when -o is not specified (can be empty)")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
