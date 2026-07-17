@@ -37,16 +37,16 @@ func (j *JavaScriptObfuscator) Obfuscate(source []byte, opts options.Options) ([
 			}
 			
 			reVar := regexp.MustCompile(`\b` + regexp.QuoteMeta(v) + `\b`)
-			code = reVar.ReplaceAllString(code, newName)
+			code = utils.ReplaceOutsideStrings(code, reVar, newName)
 		}
 	}
 
 	if opts.MBA {
-		reAdd := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*\+\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reAdd.ReplaceAllString(code, "(($1 ^ $2) + 2 * ($1 & $2))")
-
-		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*-\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reSub.ReplaceAllString(code, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
+		// Only rewrite subtraction — adding the MBA identity for + would break
+		// string concatenation: "hello" + "world" would produce invalid bitwise ops.
+		// x - y  =>  (x ^ ~y) + 2*(x & ~y) + 1
+		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\s+-\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\b`)
+		code = utils.ReplaceOutsideStrings(code, reSub, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
 	}
 
 	if opts.HideAPI {

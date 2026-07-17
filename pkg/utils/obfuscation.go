@@ -18,15 +18,23 @@ var reservedWords = map[string]bool{
 	"void": true, "int": true, "long": true, "double": true, "float": true, "char": true,
 	"boolean": true, "new": true, "return": true, "if": true, "else": true, "for": true,
 	"while": true, "this": true, "super": true, "instanceof": true, "import": true,
+	"Scanner": true, "charAt": true, "nextInt": true, "next": true, "length": true,
+	"split": true, "trim": true, "substring": true, "valueOf": true, "toString": true,
+	"equals": true, "in": true, "Math": true, "hasNext": true, "close": true, "nextLine": true,
+	"hasNextInt": true,
 	// C++
 	"auto": true, "std": true, "cout": true, "cin": true, "endl": true, "size_t": true,
 	"namespace": true, "template": true, "typename": true, "using": true, "include": true,
 	"vector": true, "map": true, "set": true, "pair": true, "string": true,
+	"min": true, "max": true, "assign": true, "resize": true, "push_back": true,
+	"size": true, "empty": true, "clear": true, "sort": true,
 	// JS
 	"let": true, "const": true, "var": true, "function": true, "console": true, "log": true,
-	"require": true, "module": true, "exports": true, "process": true, "Math": true,
-	"parseInt": true, "parseFloat": true, "typeof": true, "delete": true, "in": true,
+	"require": true, "module": true, "exports": true, "process": true, "fs": true,
+	"parseInt": true, "parseFloat": true, "typeof": true, "delete": true,
 	"of": true, "break": true, "continue": true, "switch": true, "case": true, "default": true,
+	"join": true, "reduce": true, "filter": true, "forEach": true, "includes": true,
+	"push": true, "pop": true, "shift": true, "unshift": true, "readFileSync": true,
 	// Python
 	"def": true, "from": true, "as": true, "with": true, "pass": true, "lambda": true,
 	"yield": true, "async": true, "await": true, "raise": true, "except": true,
@@ -358,5 +366,142 @@ func MangleWhitespace(code string) string {
 		}
 	}
 
+	return out.String()
+}
+
+// ReplaceOutsideStrings applies re.ReplaceAllString(repl) on every segment of
+// code that is NOT inside a quoted string literal or a line comment.
+// It handles:
+//   - double-quoted strings (with backslash escapes)
+//   - single-quoted strings/chars (with backslash escapes)
+//   - line comments starting with // or #
+//
+// The replacement is performed on the code regions between quoted segments.
+func ReplaceOutsideStrings(code string, re *regexp.Regexp, repl string) string {
+	var out strings.Builder
+	i := 0
+	n := len(code)
+
+	// segmentStart marks the beginning of the current unquoted/non-comment chunk
+	segmentStart := 0
+
+	flush := func(end int) {
+		chunk := code[segmentStart:end]
+		out.WriteString(re.ReplaceAllString(chunk, repl))
+	}
+
+	for i < n {
+		ch := code[i]
+
+		// Line comment: // or # — copy to end of line verbatim
+		if (ch == '/' && i+1 < n && code[i+1] == '/') || ch == '#' {
+			flush(i)
+			// find end of line
+			end := strings.IndexByte(code[i:], '\n')
+			if end == -1 {
+				out.WriteString(code[i:])
+				return out.String()
+			}
+			out.WriteString(code[i : i+end+1])
+			i += end + 1
+			segmentStart = i
+			continue
+		}
+
+		// Block comment: /* ... */
+		if ch == '/' && i+1 < n && code[i+1] == '*' {
+			flush(i)
+			end := strings.Index(code[i+2:], "*/")
+			if end == -1 {
+				out.WriteString(code[i:])
+				return out.String()
+			}
+			out.WriteString(code[i : i+2+end+2])
+			i += 2 + end + 2
+			segmentStart = i
+			continue
+		}
+
+		// String literal: " ... " or ' ... '
+		if ch == '"' || ch == '\'' {
+			flush(i)
+			quote := ch
+			i++ // consume opening quote
+			out.WriteByte(quote)
+			for i < n {
+				c := code[i]
+				out.WriteByte(c)
+				if c == '\\' && i+1 < n {
+					i++
+					out.WriteByte(code[i])
+				} else if c == quote {
+					i++
+					break
+				}
+				i++
+			}
+			segmentStart = i
+			continue
+		}
+
+		// Backtick string (Go / JS template literals)
+		if ch == '`' {
+			flush(i)
+			i++
+			out.WriteByte('`')
+			for i < n {
+				c := code[i]
+				if c == '\\' && i+1 < n {
+					out.WriteByte(c)
+					i++
+					out.WriteByte(code[i])
+					i++
+					continue
+				}
+				if c == '`' {
+					out.WriteByte(c)
+					i++
+					break
+				}
+				// Template literal interpolation ${...} — treat as code
+				if c == '$' && i+1 < n && code[i+1] == '{' {
+					out.WriteByte('$')
+					out.WriteByte('{')
+					i += 2
+					depth := 1
+					exprStart := i
+					for i < n && depth > 0 {
+						ec := code[i]
+						if ec == '{' {
+							depth++
+						} else if ec == '}' {
+							depth--
+						}
+						if depth > 0 {
+							i++
+						} else {
+							break
+						}
+					}
+					// Apply replacement to the interpolation expression
+					expr := code[exprStart:i]
+					out.WriteString(re.ReplaceAllString(expr, repl))
+					if i < n {
+						out.WriteByte('}')
+						i++ // consume closing }
+					}
+					continue
+				}
+				out.WriteByte(c)
+				i++
+			}
+			segmentStart = i
+			continue
+		}
+
+		i++
+	}
+	// flush remaining unquoted tail
+	flush(n)
 	return out.String()
 }

@@ -37,7 +37,7 @@ func (r *RubyObfuscator) Obfuscate(source []byte, opts options.Options) ([]byte,
 			}
 			
 			reVar := regexp.MustCompile(`\b` + regexp.QuoteMeta(v) + `\b`)
-			code = reVar.ReplaceAllString(code, newName)
+			code = utils.ReplaceOutsideStrings(code, reVar, newName)
 		}
 	}
 

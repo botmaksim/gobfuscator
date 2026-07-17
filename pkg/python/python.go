@@ -251,8 +251,10 @@ class ObfuscatorTransformer(ast.NodeTransformer):
                 )
             ]
             
+            # Use the aliased name for 'id' if HideAPI renamed it, otherwise use 'id'.
+            id_name = self.api_map.get('id', 'id')
             false_test = ast.Compare(
-                left=ast.Call(func=ast.Name(id='id', ctx=ast.Load()), args=[ast.Constant(value=0)], keywords=[]),
+                left=ast.Call(func=ast.Name(id=id_name, ctx=ast.Load()), args=[ast.Constant(value=0)], keywords=[]),
                 ops=[ast.Eq()],
                 comparators=[ast.Constant(value=0)]
             )

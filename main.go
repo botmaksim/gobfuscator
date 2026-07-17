@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -21,6 +22,25 @@ import (
 	_ "gobfuscator/pkg/python"
 	_ "gobfuscator/pkg/ruby"
 )
+
+// copyFile copies src to dst verbatim, creating parent directories as needed.
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
 
 func detectLang(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -249,7 +269,36 @@ func processDirectory(inputDir, outputDir, forcedLang string, opts options.Optio
 
 	fmt.Printf("[*] Found %d files to process\n", len(filesToProcess))
 
-	// Pass 2: Obfuscate files
+	// Pass 2: Copy ALL files — obfuscate supported ones, copy the rest verbatim.
+	// This ensures go.mod, go.sum, config files, assets, etc. are preserved so
+	// the output directory is a complete, compilable project.
+	err = filepath.Walk(inputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		relPath, _ := filepath.Rel(inputDir, path)
+		outPath := filepath.Join(outputDir, relPath)
+
+		lang := forcedLang
+		if lang == "" {
+			lang = detectLang(path)
+		}
+		if lang == "" {
+			// Not a supported source file — copy verbatim.
+			if cpErr := copyFile(path, outPath); cpErr != nil {
+				fmt.Printf("[!] Warning: Could not copy %s: %v\n", path, cpErr)
+			} else {
+				fmt.Printf("[~] Copied verbatim: %s -> %s\n", path, outPath)
+			}
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("[!] Error walking input directory during pass 2 (copy): %v\n", err)
+	}
+
+	// Pass 3: Obfuscate the language files collected in pass 1.
 	for _, path := range filesToProcess {
 		lang := forcedLang
 		if lang == "" {
@@ -270,6 +319,14 @@ func processDirectory(inputDir, outputDir, forcedLang string, opts options.Optio
 		obfuscated, err := engine.Obfuscate(source, opts)
 		if err != nil {
 			fmt.Printf("[!] Warning: Failed to obfuscate %s: %v\n", path, err)
+			// Fall back to a verbatim copy so the project still compiles.
+			relPath, _ := filepath.Rel(inputDir, path)
+			outPath := filepath.Join(outputDir, relPath)
+			if cpErr := copyFile(path, outPath); cpErr != nil {
+				fmt.Printf("[!] Error copying fallback for %s: %v\n", path, cpErr)
+			} else {
+				fmt.Printf("[~] Obfuscation failed, copied verbatim: %s -> %s\n", path, outPath)
+			}
 			continue
 		}
 

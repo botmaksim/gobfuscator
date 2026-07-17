@@ -52,18 +52,16 @@ func (c *CppObfuscator) Obfuscate(source []byte, opts options.Options) ([]byte, 
 			}
 			
 			reVar := regexp.MustCompile(`\b` + regexp.QuoteMeta(v) + `\b`)
-			code = reVar.ReplaceAllString(code, newName)
+			code = utils.ReplaceOutsideStrings(code, reVar, newName)
 		}
 	}
 
 	if opts.MBA {
-		// x + y -> ((x ^ y) + 2 * (x & y))
-		reAdd := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*\+\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reAdd.ReplaceAllString(code, "(($1 ^ $2) + 2 * ($1 & $2))")
-
-		// x - y -> ((x ^ ~$y) + 2 * (x & ~$y) + 1)
-		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*-\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reSub.ReplaceAllString(code, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
+		// Only rewrite subtraction to avoid corrupting pointer arithmetic,
+		// array indexing, and other contexts where + is not simple integer add.
+		// x - y  =>  (x ^ ~y) + 2*(x & ~y) + 1
+		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\s+-\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\b`)
+		code = utils.ReplaceOutsideStrings(code, reSub, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
 	}
 
 	if opts.AddDeadCode {
@@ -135,26 +133,35 @@ public:
 		code = adCode + code
 	}
 
-	// Macro Dictionary Obfuscation (API Hiding & Junk)
+	// Macro Dictionary Obfuscation (API Hiding & Junk).
+	// IMPORTANT: Only apply macro substitution OUTSIDE of #include lines to avoid
+	// corrupting directives like `#include <string>` → `#include <_0xMacXXXX>`.
 	if opts.HideAPI {
 		var macros strings.Builder
 		keywords := []string{"int", "float", "double", "char", "if", "else", "return", "while", "for", "void", "cout", "cin", "printf", "malloc", "vector", "string", "endl"}
+		
+		kwMacros := make(map[string]string)
 		for _, kw := range keywords {
 			macroName := fmt.Sprintf("_0xMac%x", rand.Int31())
 			macros.WriteString(fmt.Sprintf("#define %s %s\n", macroName, kw))
-			
-			// Lookbehind to avoid matching #if, #else, #include <string>, etc.
-			reKw := regexp.MustCompile(`(?m)(^|[^#<"\w])\b` + kw + `\b`)
-			code = reKw.ReplaceAllString(code, "${1}"+macroName)
+			kwMacros[kw] = macroName
 		}
-		// Insert macros after all includes
-		reInc := regexp.MustCompile(`(?m)^(?:#include.*[\r\n]+)+`)
-		match := reInc.FindString(code)
-		if match != "" {
-			code = strings.Replace(code, match, match+macros.String()+"\n", 1)
-		} else {
-			code = macros.String() + "\n" + code
+
+		// Process line by line, skipping preprocessor directives like #include
+		lines := strings.Split(code, "\n")
+		for i, line := range lines {
+			trimLine := strings.TrimSpace(line)
+			if strings.HasPrefix(trimLine, "#") {
+				continue
+			}
+			for kw, macro := range kwMacros {
+				reKw := regexp.MustCompile(`\b` + kw + `\b`)
+				lines[i] = utils.ReplaceOutsideStrings(lines[i], reKw, macro)
+			}
 		}
+		
+		// Insert macros at the top
+		code = macros.String() + strings.Join(lines, "\n")
 	}
 
 	// Always mangle whitespace for C++

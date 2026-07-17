@@ -35,16 +35,16 @@ func (j *JavaObfuscator) Obfuscate(source []byte, opts options.Options) ([]byte,
 			}
 			
 			reVar := regexp.MustCompile(`\b` + regexp.QuoteMeta(v) + `\b`)
-			code = reVar.ReplaceAllString(code, newName)
+			code = utils.ReplaceOutsideStrings(code, reVar, newName)
 		}
 	}
 
 	if opts.MBA {
-		reAdd := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*\+\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reAdd.ReplaceAllString(code, "(($1 ^ $2) + 2 * ($1 & $2))")
-
-		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*|\d+)\s*-\s*([a-zA-Z_]\w*|\d+)\b`)
-		code = reSub.ReplaceAllString(code, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
+		// Only rewrite subtraction — the + operator is used for string concatenation
+		// in Java, so applying MBA to it would produce uncompilable code.
+		// x - y  =>  (x ^ ~y) + 2*(x & ~y) + 1
+		reSub := regexp.MustCompile(`\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\s+-\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*|\d+)\b`)
+		code = utils.ReplaceOutsideStrings(code, reSub, "(($1 ^ ~$2) + 2 * ($1 & ~$2) + 1)")
 	}
 
 	if opts.HideAPI {
@@ -96,7 +96,7 @@ class %s {
 			randVal2 := rand.Intn(100) + 1
 			pred2 := fmt.Sprintf("((%d * %d + %d) %% 2 != 0)", randVal2, randVal2, randVal2)
 			body := utils.GenerateDeadCodeBody("java", "")
-			return fmt.Sprintf("%s\n        if (%s) { while(%s){ %s } }\n", match, pred, pred2, body)
+			return fmt.Sprintf("%s\n        if (%s) { if(%s){ %s } }\n", match, pred, pred2, body)
 		})
 	}
 

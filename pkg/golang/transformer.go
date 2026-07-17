@@ -20,6 +20,8 @@ type Transformer struct {
 	opts      options.Options
 	nameMap   map[string]string
 	generated map[ast.Node]bool
+	// skipNames holds identifiers that must never be renamed (e.g. generated API aliases).
+	skipNames map[string]bool
 }
 
 // NewTransformer creates a new Transformer.
@@ -28,6 +30,7 @@ func NewTransformer(opts options.Options) *Transformer {
 		opts:      opts,
 		nameMap:   make(map[string]string),
 		generated: make(map[ast.Node]bool),
+		skipNames: make(map[string]bool),
 	}
 }
 
@@ -100,9 +103,12 @@ func (t *Transformer) collectDeclarations(f *ast.File) {
 		switch x := n.(type) {
 		case *ast.ValueSpec:
 			for _, name := range x.Names {
-				if name.Name != "_" {
-					t.nameMap[name.Name] = t.getOrGenerateName(name.Name)
+				// Skip blank identifier and exported names (uppercase) — renaming exports
+				// breaks cross-file/cross-package references.
+				if name.Name == "_" || ast.IsExported(name.Name) {
+					continue
 				}
+				t.nameMap[name.Name] = t.getOrGenerateName(name.Name)
 			}
 		case *ast.AssignStmt:
 			if x.Tok == token.DEFINE {
@@ -143,6 +149,10 @@ func (t *Transformer) getOrGenerateName(original string) string {
 
 func (t *Transformer) renameIdentifiers(n ast.Node) {
 	if ident, ok := n.(*ast.Ident); ok {
+		// Never rename identifiers that are in the skip set (e.g. generated API aliases).
+		if t.skipNames[ident.Name] {
+			return
+		}
 		if newName, exists := t.nameMap[ident.Name]; exists {
 			ident.Name = newName
 		}
@@ -155,13 +165,15 @@ func (t *Transformer) obfuscateStringsPass(f *ast.File) {
 	}
 	
 	decFuncName := generateRandomName()
+	// Protect the generated decryptor name from being renamed by subsequent passes.
+	t.skipNames[decFuncName] = true
 	
-	// Inject decryptor function
-	src := fmt.Sprintf(`package main
+	// Inject decryptor function using the actual package name (not hardcoded "main").
+	src := fmt.Sprintf(`package %s
 	func %s(d []byte, k byte) string {
 		for i := 0; i < len(d); i++ { d[i] ^= k }
 		return string(d)
-	}`, decFuncName)
+	}`, f.Name.Name, decFuncName)
 	f2, err := parser.ParseFile(token.NewFileSet(), "", src, 0)
 	if err == nil {
 		f.Decls = append(f.Decls, f2.Decls[0])
@@ -422,21 +434,35 @@ func (t *Transformer) injectDeadCodePass(f *ast.File) {
 }
 
 func (t *Transformer) flattenFlowPass(f *ast.File) {
-	var targetBlocks []*ast.BlockStmt
+	// Collect only functions that have NO return values.
+	// CFF wraps the body in a for/switch; if the function must return a value,
+	// the compiler will reject it (missing return at end of function).
+	type funcBlock struct {
+		block     *ast.BlockStmt
+		hasReturn bool
+	}
+	var targets []funcBlock
 
 	ast.Inspect(f, func(n ast.Node) bool {
 		if fn, ok := n.(*ast.FuncDecl); ok && fn.Body != nil {
-			targetBlocks = append(targetBlocks, fn.Body)
+			hasRet := fn.Type.Results != nil && len(fn.Type.Results.List) > 0
+			targets = append(targets, funcBlock{block: fn.Body, hasReturn: hasRet})
 		}
 		return true
 	})
 
-	for _, block := range targetBlocks {
+	for _, target := range targets {
+		// Skip functions that return values — CFF would make them not compile.
+		if target.hasReturn {
+			continue
+		}
+		block := target.block
 		if len(block.List) == 0 {
 			continue
 		}
 		
 		stateVar := generateRandomName()
+		t.skipNames[stateVar] = true
 		
 		initStmt := &ast.AssignStmt{
 			Lhs: []ast.Expr{&ast.Ident{Name: stateVar}},
@@ -471,39 +497,7 @@ func (t *Transformer) flattenFlowPass(f *ast.File) {
 			Body: &ast.BlockStmt{List: []ast.Stmt{switchStmt}},
 		}
 		
-		hasReturn := false
-		// Find if the block belongs to a function that has return values
-		ast.Inspect(f, func(n ast.Node) bool {
-			if fn, ok := n.(*ast.FuncDecl); ok && fn.Body == block {
-				if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 {
-					hasReturn = true
-				}
-			}
-			return true
-		})
-		
 		block.List = []ast.Stmt{initStmt, forStmt}
-		
-		if hasReturn {
-			forStmt := &ast.ForStmt{
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{
-						&ast.AssignStmt{
-							Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
-							Tok: token.ASSIGN,
-							Rhs: []ast.Expr{
-								&ast.BinaryExpr{
-									X:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
-									Op: token.ADD,
-									Y:  &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(mathrand.Intn(100) + 1)},
-								},
-							},
-						},
-					},
-				},
-			}
-			block.List = append(block.List, forStmt)
-		}
 	}
 }
 
@@ -522,6 +516,8 @@ func (t *Transformer) hideAPIPass(f *ast.File) {
 							if !exists {
 								alias = generateRandomName()
 								apiMap[fullName] = alias
+								// Protect alias from being renamed by renameIdentifiers.
+								t.skipNames[alias] = true
 							}
 							call.Fun = &ast.Ident{Name: alias}
 						}
@@ -725,6 +721,8 @@ func (t *Transformer) antiDebugPass(f *ast.File) {
 		newBody := []ast.Stmt{startAssign, deferStmt}
 		newBody = append(newBody, mainFunc.Body.List...)
 		mainFunc.Body.List = newBody
+
+		// Add required imports, but avoid duplicates.
 		var importDecl *ast.GenDecl
 		for _, decl := range f.Decls {
 			if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
@@ -733,11 +731,31 @@ func (t *Transformer) antiDebugPass(f *ast.File) {
 			}
 		}
 
+		hasTime, hasOS := false, false
 		if importDecl != nil {
-			importDecl.Specs = append(importDecl.Specs, 
-				&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: `"time"`}},
-				&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: `"os"`}},
-			)
+			for _, spec := range importDecl.Specs {
+				if imp, ok := spec.(*ast.ImportSpec); ok {
+					switch imp.Path.Value {
+					case `"time"`:
+						hasTime = true
+					case `"os"`:
+						hasOS = true
+					}
+				}
+			}
+		}
+
+		if importDecl != nil {
+			if !hasTime {
+				importDecl.Specs = append(importDecl.Specs,
+					&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: `"time"`}},
+				)
+			}
+			if !hasOS {
+				importDecl.Specs = append(importDecl.Specs,
+					&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: `"os"`}},
+				)
+			}
 		} else {
 			importDecl = &ast.GenDecl{
 				Tok: token.IMPORT,
@@ -844,51 +862,50 @@ func (t *Transformer) opaquePredsPass(f *ast.File) {
 func (t *Transformer) mbaPass(f *ast.File) {
 	ast.Inspect(f, func(n ast.Node) bool {
 		if bin, ok := n.(*ast.BinaryExpr); ok {
-			// We only safely obfuscate SUB (-) to avoid breaking string concatenation (+)
-			// x - y => (x ^ ^y) + 2 * (x & ^y) + 1
+			// We only safely obfuscate SUB (-) to avoid breaking string concatenation (+).
+			// Identity: x - y == (x ^ ^y) + 2*(x & ^y) + 1
 			if bin.Op == token.SUB {
 				x := bin.X
 				y := bin.Y
 
-				notY := &ast.UnaryExpr{
-					Op: token.XOR, // Bitwise NOT in Go is ^
-					X:  y,
-				}
+				// Create TWO independent ^y nodes — sharing a single AST node between
+				// xXorNotY and xAndNotY causes corruption when subsequent passes mutate it.
+				notY1 := &ast.UnaryExpr{Op: token.XOR, X: y}
+				notY2 := &ast.UnaryExpr{Op: token.XOR, X: y}
 
 				xXorNotY := &ast.BinaryExpr{
 					X:  x,
 					Op: token.XOR,
-					Y:  notY,
+					Y:  notY1,
 				}
 
 				xAndNotY := &ast.BinaryExpr{
 					X:  x,
 					Op: token.AND,
-					Y:  notY,
+					Y:  notY2,
 				}
 
 				twoTimesXAndNotY := &ast.BinaryExpr{
 					X:  &ast.BasicLit{Kind: token.INT, Value: "2"},
 					Op: token.MUL,
-					Y:  &ast.ParenExpr{X: xAndNotY}, // (x & ^y)
+					Y:  &ast.ParenExpr{X: xAndNotY},
 				}
 
-				// (x ^ ^y) + 2 * (x & ^y)
+				// (x ^ ^y) + 2*(x & ^y) + 1
 				part1 := &ast.BinaryExpr{
 					X:  &ast.ParenExpr{X: xXorNotY},
 					Op: token.ADD,
 					Y:  twoTimesXAndNotY,
 				}
-
-				// part1 + 1
 				finalExpr := &ast.BinaryExpr{
 					X:  part1,
 					Op: token.ADD,
 					Y:  &ast.BasicLit{Kind: token.INT, Value: "1"},
 				}
 
-				bin.X = finalExpr
-				bin.Op = token.ADD // Change operation to add 0 just to satisfy the structure if needed? No, we can just change bin.X to finalExpr, bin.Op to ADD, bin.Y to 0
+				// Replace the original subtraction in-place.
+				bin.X = &ast.ParenExpr{X: finalExpr}
+				bin.Op = token.ADD
 				bin.Y = &ast.BasicLit{Kind: token.INT, Value: "0"}
 			}
 		}
